@@ -16,7 +16,7 @@ spec:
       containers:
         - name: wordpress-operator
           # Replace this with the built image name
-          image: 'quay.io/srust/wordpress-operator'
+          image: quay.io/srust/wordpress-operator:0.0.1
           command:
           - wordpress-operator
           imagePullPolicy: Always

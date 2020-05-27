@@ -4,6 +4,7 @@ import (
 	"context"
 
 	examplev1 "github.com/srust/wordpress-operator/pkg/apis/example/v1"
+	resource "k8s.io/apimachinery/pkg/api/resource"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -120,74 +121,324 @@ func (r *ReconcileWordpress) Reconcile(request reconcile.Request) (reconcile.Res
 		return reconcile.Result{}, err
 	}
 
-	pvc := 
+	// secret
+	secret := r.MysqlSecret(instance)
 
-//   - pvc mysql
-//   - pvc wordpress
-//   - deployment mysql
-//   - deployment wordpress
-//   - service mysql (ClusterIP)
-//   - service wordpress (LoadBalancer)
-//   - mysql secret (mysql-pass)
-
-	// Define a new Pod object
-	pod := newPodForCR(instance)
-
-	// Set Wordpress instance as the owner and controller
-	if err := controllerutil.SetControllerReference(instance, pod, r.scheme); err != nil {
-		return reconcile.Result{}, err
-	}
-
-	// Check if this Pod already exists
-	found := &corev1.Pod{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{Name: pod.Name, Namespace: pod.Namespace}, found)
+	foundsecret := &corev1.Secret{}
+	err = r.client.Get(context.TODO(), types.NamespacedName{Name: secret.Name, Namespace: secret.Namespace}, foundsecret)
 	if err != nil && errors.IsNotFound(err) {
-		reqLogger.Info("Creating a new Pod", "Pod.Namespace", pod.Namespace, "Pod.Name", pod.Name)
-		err = r.client.Create(context.TODO(), pod)
+		reqLogger.Info("Creating a new SECRET", "Secret.Namespace", secret.Namespace, "Secret.Name", secret.Name)
+		err = r.client.Create(context.TODO(), secret)
 		if err != nil {
+			reqLogger.Error(err, "Failed to create new SECRET.", "Secret.Namespace", secret.Namespace, "Secret.Name", secret.Name)
 			return reconcile.Result{}, err
 		}
-
-		// Pod created successfully - don't requeue
-		return reconcile.Result{}, nil
 	} else if err != nil {
 		return reconcile.Result{}, err
 	}
 
-	// Pod already exists - don't requeue
-	reqLogger.Info("Skip reconcile: Pod already exists", "Pod.Namespace", found.Namespace, "Pod.Name", found.Name)
+	// pvc mysql
+	pvc := r.MysqlPvc(instance)
+
+	// idempotent: check if this already exists
+	foundpvc := &corev1.PersistentVolumeClaim{}
+	err = r.client.Get(context.TODO(), types.NamespacedName{Name: pvc.Name, Namespace: pvc.Namespace}, foundpvc)
+	if err != nil && errors.IsNotFound(err) {
+		reqLogger.Info("Creating a new PVC", "Pvc.Namespace", pvc.Namespace, "Pvc.Name", pvc.Name)
+		err = r.client.Create(context.TODO(), pvc)
+		if err != nil {
+			reqLogger.Error(err, "Failed to create new PVC.", "Pvc.Namespace", pvc.Namespace, "Pvc.Name", pvc.Name)
+			return reconcile.Result{}, err
+		}
+	} else if err != nil {
+		return reconcile.Result{}, err
+	}
+
+	// - pvc wordpress
+	pvc = r.WordpressPvc(instance)
+
+	// idempotent: check if this already exists
+	foundpvc = &corev1.PersistentVolumeClaim{}
+	err = r.client.Get(context.TODO(), types.NamespacedName{Name: pvc.Name, Namespace: pvc.Namespace}, foundpvc)
+	if err != nil && errors.IsNotFound(err) {
+		reqLogger.Info("Creating a new PVC", "Pvc.Namespace", pvc.Namespace, "Pvc.Name", pvc.Name)
+		err = r.client.Create(context.TODO(), pvc)
+		if err != nil {
+			reqLogger.Error(err, "Failed to create new PVC.", "Pvc.Namespace", pvc.Namespace, "Pvc.Name", pvc.Name)
+			return reconcile.Result{}, err
+		}
+	} else if err != nil {
+		return reconcile.Result{}, err
+	}
+
+	// - deployment mysql
+	deployment := r.MysqlDeployment(instance)
+
+	// idempotent: check if this already exists
+	founddep := &appsv1.Deployment{}
+	err = r.client.Get(context.TODO(), types.NamespacedName{Name: deployment.Name, Namespace: deployment.Namespace}, founddep)
+	if err != nil && errors.IsNotFound(err) {
+		reqLogger.Info("Creating a new DEPLOYMENT", "Namespace", deployment.Namespace, "Name", deployment.Name)
+		err = r.client.Create(context.TODO(), deployment)
+		if err != nil {
+			reqLogger.Error(err, "Failed to create new DEPLOYMENT.", "Deployment.Namespace", deployment.Namespace, "Deployment.Name", deployment.Name)
+			return reconcile.Result{}, err
+		}
+	} else if err != nil {
+		return reconcile.Result{}, err
+	}
+
+	// - service mysql (ClusterIP)
+	svc := r.MysqlService(instance)
+
+	// idempotent: check if this already exists
+	foundsvc := &corev1.Service{}
+	err = r.client.Get(context.TODO(), types.NamespacedName{Name: deployment.Name, Namespace: deployment.Namespace}, foundsvc)
+	if err != nil && errors.IsNotFound(err) {
+		reqLogger.Info("Creating a new SERVICE", "Namespace", svc.Namespace, "Name", svc.Name)
+		err = r.client.Create(context.TODO(), svc)
+		if err != nil {
+			reqLogger.Error(err, "Failed to create new SERVICE.", "Service.Namespace", svc.Namespace, "Service.Name", svc.Name)
+			return reconcile.Result{}, err
+		}
+	} else if err != nil {
+		return reconcile.Result{}, err
+	}
+
+	// - deployment wordpress
+	deployment = r.WordpressDeployment(instance)
+
+	// idempotent: check if this already exists
+	founddep = &appsv1.Deployment{}
+	err = r.client.Get(context.TODO(), types.NamespacedName{Name: deployment.Name, Namespace: deployment.Namespace}, founddep)
+	if err != nil && errors.IsNotFound(err) {
+		reqLogger.Info("Creating a new DEPLOYMENT", "Namespace", deployment.Namespace, "Name", deployment.Name)
+		err = r.client.Create(context.TODO(), deployment)
+		if err != nil {
+			reqLogger.Error(err, "Failed to create new DEPLOYMENT.", "Deployment.Namespace", deployment.Namespace, "Deployment.Name", deployment.Name)
+			return reconcile.Result{}, err
+		}
+	} else if err != nil {
+		return reconcile.Result{}, err
+	}
+
+	// - service wordpress (LoadBalancer)
+	svc = r.WordpressService(instance)
+
+	// idempotent: check if this already exists
+	foundsvc = &corev1.Service{}
+	err = r.client.Get(context.TODO(), types.NamespacedName{Name: deployment.Name, Namespace: deployment.Namespace}, foundsvc)
+	if err != nil && errors.IsNotFound(err) {
+		reqLogger.Info("Creating a new SERVICE", "Namespace", svc.Namespace, "Name", svc.Name)
+		err = r.client.Create(context.TODO(), svc)
+		if err != nil {
+			reqLogger.Error(err, "Failed to create new SERVICE.", "Service.Namespace", svc.Namespace, "Service.Name", svc.Name)
+			return reconcile.Result{}, err
+		}
+	} else if err != nil {
+		return reconcile.Result{}, err
+	}
+
+//   - mysql secret (mysql-pass)
 	return reconcile.Result{}, nil
 }
 
-// deploymentForMysql returns a mysql Deployment object
-func (r *ReconcileMysql) deploymentForMysql(m *examplev1.Wordpress) *appsv1.Deployment {
-	ls := labelsForMemcached(m.Name)
+func (r* ReconcileWordpress) MysqlSecret(m *examplev1.Wordpress) *corev1.Secret {
+	name     := "mysql-pass"
 	password := m.Spec.SqlRootPassword
+
+	secret := &corev1.Secret {
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: m.Namespace,
+		},
+		Type: "Opaque",
+		StringData: map[string]string {
+			name: password,
+		},
+	}
+
+	controllerutil.SetControllerReference(m, secret, r.scheme)
+	return secret
+}
+
+func (r* ReconcileWordpress) MysqlPvc(m *examplev1.Wordpress) *corev1.PersistentVolumeClaim {
+	labels := map[string]string {
+		"app":  "wordpress",
+	}
+
+	pvc := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "mysql-pv-claim",
+			Namespace: m.Namespace,
+			Labels:    labels,
+		},
+		Spec: corev1.PersistentVolumeClaimSpec{
+            AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+            Resources: corev1.ResourceRequirements{
+                Requests: corev1.ResourceList{
+                    corev1.ResourceName(corev1.ResourceStorage): resource.MustParse("20Gi"),
+                },
+			},
+		},
+	}
+
+	controllerutil.SetControllerReference(m, pvc, r.scheme)
+	return pvc
+}
+
+func (r* ReconcileWordpress) WordpressPvc(m *examplev1.Wordpress) *corev1.PersistentVolumeClaim {
+	labels := map[string]string {
+		"app":  "wordpress",
+	}
+
+	pvc := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "wp-pv-claim",
+			Namespace: m.Namespace,
+			Labels:    labels,
+		},
+		Spec: corev1.PersistentVolumeClaimSpec{
+            AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+            Resources: corev1.ResourceRequirements{
+                Requests: corev1.ResourceList{
+                    corev1.ResourceName(corev1.ResourceStorage): resource.MustParse("20Gi"),
+                },
+			},
+		},
+	}
+
+	controllerutil.SetControllerReference(m, pvc, r.scheme)
+	return pvc
+}
+
+// deploymentForMysql returns a mysql Deployment object
+func (r *ReconcileWordpress) MysqlDeployment(m *examplev1.Wordpress) *appsv1.Deployment {
+	labels := map[string]string {
+		"app":  "wordpress",
+	}
+	matchlabels := map[string]string {
+		"app":  "wordpress",
+		"tier": "mysql",
+	}
+
+	rootPasswordSecret := &corev1.EnvVarSource{
+		SecretKeyRef: &corev1.SecretKeySelector{
+			LocalObjectReference: corev1.LocalObjectReference{Name: "mysql-pass"},
+			Key: "password",
+		},
+	}
 
 	dep := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "wordpress-mysql",
 			Namespace: m.Namespace,
+			Labels:    labels,
 		},
 		Spec: appsv1.DeploymentSpec{
 			Selector: &metav1.LabelSelector{
-				MatchLabels: {
-					app:  "wordpress",
-					tier: "mysql",
-				},
+				MatchLabels: matchlabels,
 			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels: "wordpress-mysql",
+					Labels: matchlabels,
 				},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
 						Image:   "mysql:5.6",
 						Name:    "mysql",
+						Env: []corev1.EnvVar{{
+							Name: "MYSQL_ROOT_PASSWORD",
+							ValueFrom: rootPasswordSecret,
+						}},
 						Ports: []corev1.ContainerPort{{
 							ContainerPort: 3306,
 							Name:          "mysql",
 						}},
+						VolumeMounts: []corev1.VolumeMount{{
+							Name:      "mysql-persistent-storage",
+							MountPath: "/var/lib/mysql",
+						}},
+					}},
+					Volumes: []corev1.Volume{{
+						Name: "mysql-persistent-storage",
+						VolumeSource: corev1.VolumeSource{
+							PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+								ClaimName: "mysql-pv-claim",
+							},
+						},
+					}},
+				},
+			},
+		},
+	}
+
+	// Set Wordpress instance as the owner of the Deployment.
+	controllerutil.SetControllerReference(m, dep, r.scheme)
+	return dep
+}
+
+// returns a Wordpress Deployment object
+func (r *ReconcileWordpress) WordpressDeployment(m *examplev1.Wordpress) *appsv1.Deployment {
+	labels := map[string]string {
+		"app":  "wordpress",
+	}
+	matchlabels := map[string]string {
+		"app":  "wordpress",
+		"tier": "frontend",
+	}
+
+	rootPasswordSecret := &corev1.EnvVarSource{
+		SecretKeyRef: &corev1.SecretKeySelector{
+			LocalObjectReference: corev1.LocalObjectReference{Name: "mysql-pass"},
+			Key: "password",
+		},
+	}
+
+	dep := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "wordpress",
+			Namespace: m.Namespace,
+			Labels:    labels,
+		},
+		Spec: appsv1.DeploymentSpec{
+			Selector: &metav1.LabelSelector{
+				MatchLabels: matchlabels,
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: matchlabels,
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Image:   "wordpress:4.8-apache",
+						Name:    "wordpress",
+						Env: []corev1.EnvVar{
+							{
+								Name: "WORDPRESS_DB_HOST",
+								Value: "wordpress-mysql",
+							},
+							{
+								Name: "WORDPRESS_DB_PASSWORD",
+								ValueFrom: rootPasswordSecret,
+							},
+						},
+						Ports: []corev1.ContainerPort{{
+							ContainerPort: 80,
+							Name:          "wordpress",
+						}},
+						VolumeMounts: []corev1.VolumeMount{{
+							Name:      "wordpress-persistent-storage",
+							MountPath: "/var/www/html",
+						}},
+					}},
+					Volumes: []corev1.Volume{{
+						Name: "wordpress-persistent-storage",
+						VolumeSource: corev1.VolumeSource{
+							PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+								ClaimName: "wp-pv-claim",
+							},
+						},
 					}},
 				},
 			},
@@ -200,27 +451,57 @@ func (r *ReconcileMysql) deploymentForMysql(m *examplev1.Wordpress) *appsv1.Depl
 }
 
 // serviceForMysql function takes in a Wordpress object and returns a Service for that object.
-func (r *ReconcileMysql) serviceForMysql(m *examplev1.Wordpress) *corev1.Service {
+func (r* ReconcileWordpress) MysqlService(m *examplev1.Wordpress) *corev1.Service {
+	selector := map[string]string {
+		"app":  "wordpress",
+		"tier": "mysql",
+	}
 	ser := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "wordpress-mysql",
 			Namespace: m.Namespace,
 		},
 		Spec: corev1.ServiceSpec{
-			Selector: {
-				app:  "wordpress",
-				tier: "mysql",
-			},
+			Selector: selector,
 			Ports: []corev1.ServicePort{
 				{
 					Port: 3306,
-					Name: m.Name,
+					Name: "mysql",
 				},
 			},
-			ClusterIp: "None",
+			ClusterIP: "None",
 		},
 	}
-	// Set Memcached instance as the owner of the Service.
+
+	// Set Wordpress instance as the owner of the Service.
+	controllerutil.SetControllerReference(m, ser, r.scheme)
+	return ser
+}
+
+// serviceForMysql function takes in a Wordpress object and returns a Service for that object.
+func (r* ReconcileWordpress) WordpressService(m *examplev1.Wordpress) *corev1.Service {
+	selector := map[string]string {
+		"app":  "wordpress",
+		"tier": "frontend",
+	}
+	ser := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "wordpress",
+			Namespace: m.Namespace,
+		},
+		Spec: corev1.ServiceSpec{
+			Selector: selector,
+			Ports: []corev1.ServicePort{
+				{
+					Port: 80,
+					Name: "wordpress",
+				},
+			},
+			Type: "LoadBalancer",
+		},
+	}
+
+	// Set Wordpress instance as the owner of the Service.
 	controllerutil.SetControllerReference(m, ser, r.scheme)
 	return ser
 }
