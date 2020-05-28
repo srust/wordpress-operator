@@ -2,6 +2,7 @@ package wordpress
 
 import (
 	"context"
+	"time"
 
 	examplev1 "github.com/srust/wordpress-operator/pkg/apis/example/v1"
 	resource "k8s.io/apimachinery/pkg/api/resource"
@@ -93,13 +94,13 @@ type ReconcileWordpress struct {
 // and what is in the Wordpress.Spec
 //
 // We need to reconcile:
+//   - mysql secret (mysql-pass)
 //   - pvc mysql
 //   - pvc wordpress
 //   - deployment mysql
 //   - deployment wordpress
 //   - service mysql (ClusterIP)
 //   - service wordpress (LoadBalancer)
-//   - mysql secret (mysql-pass)
 // Note:
 // The Controller will requeue the Request to be processed again if the returned error is non-nil or
 // Result.Requeue is true, otherwise upon completion it will remove the work from the queue.
@@ -239,8 +240,8 @@ func (r *ReconcileWordpress) Reconcile(request reconcile.Request) (reconcile.Res
 		return reconcile.Result{}, err
 	}
 
-//   - mysql secret (mysql-pass)
-	return reconcile.Result{}, nil
+	// Reconcile for any reason than error after 5 seconds
+	return reconcile.Result{RequeueAfter: time.Second*5}, nil
 }
 
 func (r* ReconcileWordpress) MysqlSecret(m *examplev1.Wordpress) *corev1.Secret {
@@ -254,7 +255,7 @@ func (r* ReconcileWordpress) MysqlSecret(m *examplev1.Wordpress) *corev1.Secret 
 		},
 		Type: "Opaque",
 		StringData: map[string]string {
-			name: password,
+			"password": password,
 		},
 	}
 
@@ -263,52 +264,40 @@ func (r* ReconcileWordpress) MysqlSecret(m *examplev1.Wordpress) *corev1.Secret 
 }
 
 func (r* ReconcileWordpress) MysqlPvc(m *examplev1.Wordpress) *corev1.PersistentVolumeClaim {
-	labels := map[string]string {
-		"app":  "wordpress",
-	}
-
 	pvc := &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "mysql-pv-claim",
 			Namespace: m.Namespace,
-			Labels:    labels,
 		},
 		Spec: corev1.PersistentVolumeClaimSpec{
-            AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
-            Resources: corev1.ResourceRequirements{
-                Requests: corev1.ResourceList{
-                    corev1.ResourceName(corev1.ResourceStorage): resource.MustParse("20Gi"),
-                },
+			AccessModes: []corev1.PersistentVolumeAccessMode{ corev1.ReadWriteOnce },
+			Resources: corev1.ResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceStorage: resource.MustParse("20Gi"),
+				},
 			},
 		},
 	}
 
-	controllerutil.SetControllerReference(m, pvc, r.scheme)
 	return pvc
 }
 
 func (r* ReconcileWordpress) WordpressPvc(m *examplev1.Wordpress) *corev1.PersistentVolumeClaim {
-	labels := map[string]string {
-		"app":  "wordpress",
-	}
-
 	pvc := &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "wp-pv-claim",
 			Namespace: m.Namespace,
-			Labels:    labels,
 		},
 		Spec: corev1.PersistentVolumeClaimSpec{
-            AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
-            Resources: corev1.ResourceRequirements{
-                Requests: corev1.ResourceList{
-                    corev1.ResourceName(corev1.ResourceStorage): resource.MustParse("20Gi"),
-                },
+			AccessModes: []corev1.PersistentVolumeAccessMode{ corev1.ReadWriteOnce },
+			Resources: corev1.ResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceStorage: resource.MustParse("20Gi"),
+				},
 			},
 		},
 	}
 
-	controllerutil.SetControllerReference(m, pvc, r.scheme)
 	return pvc
 }
 

@@ -12,8 +12,6 @@ type WordpressSpec struct {
 
 // WordpressStatus defines the observed state of Wordpress
 type WordpressStatus struct {
-	// Nodes are the names of the wordpress pods
-	Nodes []string `json:"nodes"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -28,6 +26,8 @@ type Wordpress struct {
 
 	Spec   WordpressSpec   `json:"spec,omitempty"`
 	Status WordpressStatus `json:"status,omitempty"`
+
+
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
