@@ -179,7 +179,7 @@ func (r *ReconcileWordpress) Reconcile(request reconcile.Request) (reconcile.Res
 	founddep := &appsv1.Deployment{}
 	err = r.client.Get(context.TODO(), types.NamespacedName{Name: deployment.Name, Namespace: deployment.Namespace}, founddep)
 	if err != nil && errors.IsNotFound(err) {
-		reqLogger.Info("Creating a new DEPLOYMENT", "Namespace", deployment.Namespace, "Name", deployment.Name)
+		reqLogger.Info("Creating a new DEPLOYMENT", "Deployment.Namespace", deployment.Namespace, "Deployment.Name", deployment.Name)
 		err = r.client.Create(context.TODO(), deployment)
 		if err != nil {
 			reqLogger.Error(err, "Failed to create new DEPLOYMENT.", "Deployment.Namespace", deployment.Namespace, "Deployment.Name", deployment.Name)
@@ -196,7 +196,7 @@ func (r *ReconcileWordpress) Reconcile(request reconcile.Request) (reconcile.Res
 	foundsvc := &corev1.Service{}
 	err = r.client.Get(context.TODO(), types.NamespacedName{Name: deployment.Name, Namespace: deployment.Namespace}, foundsvc)
 	if err != nil && errors.IsNotFound(err) {
-		reqLogger.Info("Creating a new SERVICE", "Namespace", svc.Namespace, "Name", svc.Name)
+		reqLogger.Info("Creating a new SERVICE", "Service.Namespace", svc.Namespace, "Service.Name", svc.Name)
 		err = r.client.Create(context.TODO(), svc)
 		if err != nil {
 			reqLogger.Error(err, "Failed to create new SERVICE.", "Service.Namespace", svc.Namespace, "Service.Name", svc.Name)
@@ -213,7 +213,7 @@ func (r *ReconcileWordpress) Reconcile(request reconcile.Request) (reconcile.Res
 	founddep = &appsv1.Deployment{}
 	err = r.client.Get(context.TODO(), types.NamespacedName{Name: deployment.Name, Namespace: deployment.Namespace}, founddep)
 	if err != nil && errors.IsNotFound(err) {
-		reqLogger.Info("Creating a new DEPLOYMENT", "Namespace", deployment.Namespace, "Name", deployment.Name)
+		reqLogger.Info("Creating a new DEPLOYMENT", "Deployment.Namespace", deployment.Namespace, "Deployment.Name", deployment.Name)
 		err = r.client.Create(context.TODO(), deployment)
 		if err != nil {
 			reqLogger.Error(err, "Failed to create new DEPLOYMENT.", "Deployment.Namespace", deployment.Namespace, "Deployment.Name", deployment.Name)
@@ -230,7 +230,7 @@ func (r *ReconcileWordpress) Reconcile(request reconcile.Request) (reconcile.Res
 	foundsvc = &corev1.Service{}
 	err = r.client.Get(context.TODO(), types.NamespacedName{Name: deployment.Name, Namespace: deployment.Namespace}, foundsvc)
 	if err != nil && errors.IsNotFound(err) {
-		reqLogger.Info("Creating a new SERVICE", "Namespace", svc.Namespace, "Name", svc.Name)
+		reqLogger.Info("Creating a new SERVICE", "Service.Namespace", svc.Namespace, "Service.Name", svc.Name)
 		err = r.client.Create(context.TODO(), svc)
 		if err != nil {
 			reqLogger.Error(err, "Failed to create new SERVICE.", "Service.Namespace", svc.Namespace, "Service.Name", svc.Name)
@@ -244,14 +244,14 @@ func (r *ReconcileWordpress) Reconcile(request reconcile.Request) (reconcile.Res
 	return reconcile.Result{RequeueAfter: time.Second*5}, nil
 }
 
-func (r* ReconcileWordpress) MysqlSecret(m *examplev1.Wordpress) *corev1.Secret {
+func (r* ReconcileWordpress) MysqlSecret(w *examplev1.Wordpress) *corev1.Secret {
 	name     := "mysql-pass"
-	password := m.Spec.SqlRootPassword
+	password := w.Spec.SqlRootPassword
 
 	secret := &corev1.Secret {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: m.Namespace,
+			Namespace: w.Namespace,
 		},
 		Type: "Opaque",
 		StringData: map[string]string {
@@ -259,15 +259,15 @@ func (r* ReconcileWordpress) MysqlSecret(m *examplev1.Wordpress) *corev1.Secret 
 		},
 	}
 
-	controllerutil.SetControllerReference(m, secret, r.scheme)
+	controllerutil.SetControllerReference(w, secret, r.scheme)
 	return secret
 }
 
-func (r* ReconcileWordpress) MysqlPvc(m *examplev1.Wordpress) *corev1.PersistentVolumeClaim {
+func (r* ReconcileWordpress) MysqlPvc(w *examplev1.Wordpress) *corev1.PersistentVolumeClaim {
 	pvc := &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "mysql-pv-claim",
-			Namespace: m.Namespace,
+			Namespace: w.Namespace,
 		},
 		Spec: corev1.PersistentVolumeClaimSpec{
 			AccessModes: []corev1.PersistentVolumeAccessMode{ corev1.ReadWriteOnce },
@@ -282,11 +282,11 @@ func (r* ReconcileWordpress) MysqlPvc(m *examplev1.Wordpress) *corev1.Persistent
 	return pvc
 }
 
-func (r* ReconcileWordpress) WordpressPvc(m *examplev1.Wordpress) *corev1.PersistentVolumeClaim {
+func (r* ReconcileWordpress) WordpressPvc(w *examplev1.Wordpress) *corev1.PersistentVolumeClaim {
 	pvc := &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "wp-pv-claim",
-			Namespace: m.Namespace,
+			Namespace: w.Namespace,
 		},
 		Spec: corev1.PersistentVolumeClaimSpec{
 			AccessModes: []corev1.PersistentVolumeAccessMode{ corev1.ReadWriteOnce },
@@ -302,7 +302,7 @@ func (r* ReconcileWordpress) WordpressPvc(m *examplev1.Wordpress) *corev1.Persis
 }
 
 // deploymentForMysql returns a mysql Deployment object
-func (r *ReconcileWordpress) MysqlDeployment(m *examplev1.Wordpress) *appsv1.Deployment {
+func (r *ReconcileWordpress) MysqlDeployment(w *examplev1.Wordpress) *appsv1.Deployment {
 	labels := map[string]string {
 		"app":  "wordpress",
 	}
@@ -321,7 +321,7 @@ func (r *ReconcileWordpress) MysqlDeployment(m *examplev1.Wordpress) *appsv1.Dep
 	dep := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "wordpress-mysql",
-			Namespace: m.Namespace,
+			Namespace: w.Namespace,
 			Labels:    labels,
 		},
 		Spec: appsv1.DeploymentSpec{
@@ -363,12 +363,12 @@ func (r *ReconcileWordpress) MysqlDeployment(m *examplev1.Wordpress) *appsv1.Dep
 	}
 
 	// Set Wordpress instance as the owner of the Deployment.
-	controllerutil.SetControllerReference(m, dep, r.scheme)
+	controllerutil.SetControllerReference(w, dep, r.scheme)
 	return dep
 }
 
 // returns a Wordpress Deployment object
-func (r *ReconcileWordpress) WordpressDeployment(m *examplev1.Wordpress) *appsv1.Deployment {
+func (r *ReconcileWordpress) WordpressDeployment(w *examplev1.Wordpress) *appsv1.Deployment {
 	labels := map[string]string {
 		"app":  "wordpress",
 	}
@@ -387,7 +387,7 @@ func (r *ReconcileWordpress) WordpressDeployment(m *examplev1.Wordpress) *appsv1
 	dep := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "wordpress",
-			Namespace: m.Namespace,
+			Namespace: w.Namespace,
 			Labels:    labels,
 		},
 		Spec: appsv1.DeploymentSpec{
@@ -435,12 +435,12 @@ func (r *ReconcileWordpress) WordpressDeployment(m *examplev1.Wordpress) *appsv1
 	}
 
 	// Set Wordpress instance as the owner of the Deployment.
-	controllerutil.SetControllerReference(m, dep, r.scheme)
+	controllerutil.SetControllerReference(w, dep, r.scheme)
 	return dep
 }
 
 // serviceForMysql function takes in a Wordpress object and returns a Service for that object.
-func (r* ReconcileWordpress) MysqlService(m *examplev1.Wordpress) *corev1.Service {
+func (r* ReconcileWordpress) MysqlService(w *examplev1.Wordpress) *corev1.Service {
 	selector := map[string]string {
 		"app":  "wordpress",
 		"tier": "mysql",
@@ -448,7 +448,7 @@ func (r* ReconcileWordpress) MysqlService(m *examplev1.Wordpress) *corev1.Servic
 	ser := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "wordpress-mysql",
-			Namespace: m.Namespace,
+			Namespace: w.Namespace,
 		},
 		Spec: corev1.ServiceSpec{
 			Selector: selector,
@@ -463,12 +463,12 @@ func (r* ReconcileWordpress) MysqlService(m *examplev1.Wordpress) *corev1.Servic
 	}
 
 	// Set Wordpress instance as the owner of the Service.
-	controllerutil.SetControllerReference(m, ser, r.scheme)
+	controllerutil.SetControllerReference(w, ser, r.scheme)
 	return ser
 }
 
 // serviceForMysql function takes in a Wordpress object and returns a Service for that object.
-func (r* ReconcileWordpress) WordpressService(m *examplev1.Wordpress) *corev1.Service {
+func (r* ReconcileWordpress) WordpressService(w *examplev1.Wordpress) *corev1.Service {
 	selector := map[string]string {
 		"app":  "wordpress",
 		"tier": "frontend",
@@ -476,7 +476,7 @@ func (r* ReconcileWordpress) WordpressService(m *examplev1.Wordpress) *corev1.Se
 	ser := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "wordpress",
-			Namespace: m.Namespace,
+			Namespace: w.Namespace,
 		},
 		Spec: corev1.ServiceSpec{
 			Selector: selector,
@@ -491,6 +491,6 @@ func (r* ReconcileWordpress) WordpressService(m *examplev1.Wordpress) *corev1.Se
 	}
 
 	// Set Wordpress instance as the owner of the Service.
-	controllerutil.SetControllerReference(m, ser, r.scheme)
+	controllerutil.SetControllerReference(w, ser, r.scheme)
 	return ser
 }
