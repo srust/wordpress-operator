@@ -1,15 +1,15 @@
 # wordpress-operator
-A basic Wordpress Operator. For test/dev only.
+A basic Wordpress Operator.
 
 # Build
 
-Type `make` to build the operator using the *operator-sdk* command, which in turn uses docker to perform the imaging. Assumes the *operator-sdk* is in the path.
+Type `make` to build the operator. Assumes *operator-sdk* is in the path and *docker* is available.
 
 ```
 make
 ```
 
-If you need a different image name or version you can specify them:
+By default the image is built under quay.io/srust. If you need a different image name or version you can specify them:
 
 ```
 IMAGE=quay.io/user/wordpress-operator VERSION=1.0 make
@@ -23,7 +23,11 @@ Push the image to the remote repository for deployment.
 make push
 ```
 
-**NOTE**: assumes logged in to remote repository
+```
+IMAGE=quay.io/user/wordpress-operator VERSION=1.0 make push
+```
+
+**NOTE**: assumes logged in to remote registry
 
 # Deploy the Wordpress CRD
 
@@ -74,6 +78,6 @@ secret/wordpress-operator-token-bqv54   kubernetes.io/service-account-token   3 
 # NOTES
 
 * PVCs are not removed when "Wordpress" is removed. It is intended that the data is retained for future use, unless deleted by an administrator.
-* On "minikube" the EXTERNAL-IP for the LoadBalancer will stay **<pending>**
-* Much of the configuration / naming of services is hard coded in the Operator. This could be improved to support multiple deployments, perhaps through ConfigMap.
+* On "minikube" the EXTERNAL-IP for the LoadBalancer will stay **\<pending\>**
+* Much of the configuration / naming of services is hard-coded in the Operator, making this a single deployment example only. This could be improved to support multiple deployments, perhaps through ConfigMap.
 * The mysql password is also plaintext in the yaml. This could be improved to be stored in a secret directly.
