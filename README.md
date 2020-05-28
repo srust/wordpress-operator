@@ -17,7 +17,7 @@ IMAGE=quay.io/user/wordpress-operator VERSION=1.0 make
 
 # Upload the operator image
 
-Push the image to the remote repository for deployment.
+Push the image to the remote registry for deployment.
 
 ```
 make push
