@@ -1,6 +1,12 @@
 # wordpress-operator
 A basic Wordpress Operator.
 
+This operator deploys a wordpress service backed by mysql, with a LoadBalancer
+service for Wordpress, a NodePort for Mysql, backed by two PVCs, one for each
+service deployment.
+
+It is optimized for minikube, and expects a *default* StorageClass to exist.
+
 # Build
 
 Type `make` to build the operator. Assumes *operator-sdk* is in the path and *docker* is available.
@@ -35,6 +41,18 @@ IMAGE=quay.io/user/wordpress-operator VERSION=1.0 make push
 kubectl create -f deploy/crds/example.com_wordpresses_crd.yaml
 ```
 
+# Operator Configuration
+
+The Wordpress Operator takes the following configuration options as environment variables in the deployment for the Operator, change by editing `deploy/operator.yaml`
+
+| env | default | desc
+------| --------| --------
+| WORDPRESS_SECRET_NAME | mysql-pass | The name of the secret created by the operator where the mysql root password is stored |
+| WORDPRESS_SECRET_KEY  | password   | The secret key created by the operator to store the mysql root password |
+| WORDPRESS_PVC_SIZE    | 20Gi       | PVC size for the mysql and wordpress backing PVCs |
+| WORDPRESS_IMAGE_MYSQL | mysql:5.6  | mysql image to use |
+| WORDPRESS_IMAGE_WORDPRESS | wordpress:4.8-apache | wordpress image to use |
+
 # Deploy the Wordpress Operator
 
 ```
@@ -44,10 +62,32 @@ kubectl create -f deploy/service_account.yaml
 kubectl create -f deploy/operator.yaml
 ```
 
-# Deploy Wordpress
+# Wordpress Configuration
+
+Edit `wordpress.yaml` to configure the `sqlRootPassword` and the `retainVolumes` setting. The `retainVolumes` setting defaults to false, which means PVCs will be deleted when the wordpress deployment is deleted. Set `retainVolumes` to `true` to keep PVCs around.
+
+```
+apiVersion: example.com/v1
+kind: Wordpress
+metadata:
+  name: mysite
+spec:
+  sqlRootPassword: plaintextpassword
+  retainVolumes: false
+```
+
+# Deploy Wordpress Instance
 
 ```
 kubectl create -f wordpress.yaml
+```
+
+# Minikube
+
+Use `minikube tunnel` to expose an EXTERNAL-IP for the wordpress load balancer.
+
+```
+$ minikube tunnel
 ```
 
 # Verify Deployment
@@ -55,29 +95,73 @@ kubectl create -f wordpress.yaml
 ```
 $ kubectl get deployment,service,pvc,secret
 NAME                                 READY   UP-TO-DATE   AVAILABLE   AGE
-deployment.apps/wordpress            1/1     1            1           7s
-deployment.apps/wordpress-mysql      1/1     1            1           7s
-deployment.apps/wordpress-operator   1/1     1            1           11s
+deployment.apps/wordpress            1/1     1            1           11s
+deployment.apps/wordpress-mysql      1/1     1            1           11s
+deployment.apps/wordpress-operator   1/1     1            1           17s
 
-NAME                                 TYPE           CLUSTER-IP     EXTERNAL-IP   PORT(S)             AGE
-service/kubernetes                   ClusterIP      10.96.0.1      <none>        443/TCP             3h2m
-service/wordpress                    LoadBalancer   10.110.8.241   <pending>     80:30317/TCP        7s
-service/wordpress-mysql              ClusterIP      None           <none>        3306/TCP            7s
-service/wordpress-operator-metrics   ClusterIP      10.98.48.23    <none>        8383/TCP,8686/TCP   8s
+NAME                                 TYPE           CLUSTER-IP       EXTERNAL-IP      PORT(S)             AGE
+service/kubernetes                   ClusterIP      10.96.0.1        <none>           443/TCP             3d22h
+service/wordpress                    LoadBalancer   10.111.173.251   10.111.173.251   80:31963/TCP        11s
+service/wordpress-mysql              ClusterIP      None             <none>           3306/TCP            11s
+service/wordpress-operator-metrics   ClusterIP      10.106.234.30    <none>           8383/TCP,8686/TCP   12s
 
 NAME                                   STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   AGE
-persistentvolumeclaim/mysql-pv-claim   Bound    pvc-2127fc52-40bf-4e58-9440-7fa5fd18e59d   20Gi       RWO            standard       7s
-persistentvolumeclaim/wp-pv-claim      Bound    pvc-17a89d6f-50b4-4ee1-a974-da990717e233   20Gi       RWO            standard       7s
+persistentvolumeclaim/mysql-pv-claim   Bound    pvc-d390d20c-f217-43f2-b8e6-2d15b4a41f8c   20Gi       RWO            standard       12s
+persistentvolumeclaim/wp-pv-claim      Bound    pvc-b3110005-25f1-4926-8288-e7b059e1cd82   20Gi       RWO            standard       11s
 
 NAME                                    TYPE                                  DATA   AGE
-secret/default-token-dhm62              kubernetes.io/service-account-token   3      3h2m
-secret/mysql-pass                       Opaque                                1      7s
-secret/wordpress-operator-token-bqv54   kubernetes.io/service-account-token   3      11s
+secret/default-token-dhm62              kubernetes.io/service-account-token   3      3d22h
+secret/mysql-pass                       Opaque                                1      12s
+secret/wordpress-operator-token-lh6pn   kubernetes.io/service-account-token   3      17s
+```
+
+# Verify Wordpress Instance Conditions
+
+Check Status Conditions in the wordpress instance to ensure that each component was created
+
+```
+$ kubectl get wordpress/mysite -o yaml
+status:
+  conditions:
+  - lastTransitionTime: "2020-05-31T22:53:59Z"
+    message: mysqlDeployment has been created
+    reason: operatorCreated
+    status: "True"
+    type: mysqlDeploymentCreated
+  - lastTransitionTime: "2020-05-31T22:53:58Z"
+    message: mysqlPVC has been created
+    reason: operatorCreated
+    status: "True"
+    type: mysqlPVCCreated
+  - lastTransitionTime: "2020-05-31T22:53:59Z"
+    message: mysqlService has been created
+    reason: operatorCreated
+    status: "True"
+    type: mysqlServiceCreated
+  - lastTransitionTime: "2020-05-31T22:53:58Z"
+    message: secret has been created
+    reason: operatorCreated
+    status: "True"
+    type: secretCreated
+  - lastTransitionTime: "2020-05-31T22:53:59Z"
+    message: wordpressDeployment has been created
+    reason: operatorCreated
+    status: "True"
+    type: wordpressDeploymentCreated
+  - lastTransitionTime: "2020-05-31T22:53:59Z"
+    message: wordpressPVC has been created
+    reason: operatorCreated
+    status: "True"
+    type: wordpressPVCCreated
+  - lastTransitionTime: "2020-05-31T22:53:59Z"
+    message: wordpressService has been created
+    reason: operatorCreated
+    status: "True"
+    type: wordpressServiceCreated
 ```
 
 # NOTES
 
-* PVCs are not removed when "Wordpress" is removed. It is intended that the data is retained for future use, unless deleted by an administrator.
-* On "minikube" the EXTERNAL-IP for the LoadBalancer will stay **\<pending\>**
-* Much of the configuration / naming of services is hard-coded in the Operator, making this a single deployment example only. This could be improved to support multiple deployments, perhaps through ConfigMap.
+* Edit the operator deployment to update image versions for mysql and wordpress if desired
+* One instance of wordpress is currently supported at the same time, as various service and PVC names are well-known names, and statically defined.
 * The mysql password is also plaintext in the yaml. This could be improved to be stored in a secret directly.

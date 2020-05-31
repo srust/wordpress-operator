@@ -15,8 +15,7 @@ spec:
       serviceAccountName: wordpress-operator
       containers:
         - name: wordpress-operator
-          # Replace this with the built image name
-          image: quay.io/srust/wordpress-operator:0.0.1
+          image: quay.io/srust/wordpress-operator:better
           command:
           - wordpress-operator
           imagePullPolicy: Always
@@ -31,3 +30,13 @@ spec:
                   fieldPath: metadata.name
             - name: OPERATOR_NAME
               value: "wordpress-operator"
+            - name: WORDPRESS_SECRET_NAME
+              value: "mysql-pass"
+            - name: WORDPRESS_SECRET_KEY
+              value: "password"
+            - name: WORDPRESS_PVC_SIZE
+              value: "20Gi"
+            - name: WORDPRESS_IMAGE_MYSQL
+              value: "mysql:5.6"
+            - name: WORDPRESS_IMAGE_WORDPRESS
+              value: "wordpress:4.8-apache"
