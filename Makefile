@@ -1,5 +1,5 @@
 IMAGE   ?= quay.io/srust/wordpress-operator
-VERSION ?= 0.0.1
+VERSION ?= better
 
 build:
 	operator-sdk build $(IMAGE):$(VERSION)

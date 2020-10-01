@@ -4,3 +4,4 @@ metadata:
   name: mysite
 spec:
   sqlRootPassword: plaintextpassword
+  retainVolumes: false
